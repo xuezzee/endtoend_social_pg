@@ -21,7 +21,11 @@ class PGagent():
         self.rewards = []
         self.device = agentParam["device"]
         # init network parameters
-        self.policy = Policy(state_dim=self.state_dim, action_dim=self.action_dim).to(self.device)
+        if agentParam["ifload"]:
+            self.policy = torch.load(agentParam["filename"]+"pg"+agentParam["id"]+".pth",map_location = torch.device('cuda'))
+        else:
+            self.policy = Policy(state_dim=self.state_dim, action_dim=self.action_dim).to(self.device)
+            
         self.optimizer = optim.Adam(self.policy.parameters(), lr=agentParam["LR"])
         self.eps = np.finfo(np.float32).eps.item()
 
@@ -60,7 +64,10 @@ class PGagent():
 class social_agent(PGagent):
     def __init__(self,agentParam):
         super().__init__(agentParam)
-        self.policy = socialMask(state_dim=self.state_dim, action_dim=self.action_dim).to(self.device)
+        if agentParam["ifload"]:
+            self.policy = torch.load(agentParam["filename"]+"pg_law"+".pth",map_location = torch.device('cuda'))
+        else:
+            self.policy = socialMask(state_dim=self.state_dim, action_dim=self.action_dim).to(self.device)
         #    #[[pi_1,pi_2,...],[pi_1,pi_2,...],...
         self.pi_step = []
         #    #[[prob_1,prob_2,...],[prob_1,prob_2,...],....
