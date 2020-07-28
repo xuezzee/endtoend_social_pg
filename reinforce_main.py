@@ -12,12 +12,14 @@ from gather_env import GatheringEnv
 from PGagent import PGagent,social_agent,newPG
 from network import socialMask
 from copy import deepcopy
+import os
 from multiAG import independentAgent,socialAgents
+os.environ["CUDA_VISIBLE_DEVICES"]="1"
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 parser = argparse.ArgumentParser(description='PyTorch REINFORCE example')
-parser.add_argument('--gamma', type=float, default=1, metavar='G',
+parser.add_argument('--gamma', type=float, default=0.98, metavar='G',
                     help='discount factor (default: 0.99)')
 parser.add_argument('--seed', type=int, default=543, metavar='N',
                     help='random seed (default: 543)')
@@ -27,22 +29,22 @@ parser.add_argument('--log-interval', type=int, default=5, metavar='N',
                     help='interval between training status logs (default: 10)')
 args = parser.parse_args()
 
-n_agents = 1#2
-env = GatheringEnv(n_agents)#gym.make('CartPole-v1')
+n_agents = 2
+env = GatheringEnv(n_agents,"default_small2")
 env.seed(args.seed)
 torch.manual_seed(args.seed)
 
-test_mode = True
+test_mode = False
 
 
-names = {"social":"pg_social","base":"pg_indi","single":"pg_single"}
-mode = "single"
+names = {"social":"pg_social","base":"pg_indi","single":"pg_single_less","forbid":"base_forbid"}
+mode = "base"
 model_name = names[mode]
 file_name  = "train_para/"+model_name
-agentParam = {"gamma":args.gamma,"LR":0.005,"device":device,"ifload":True,"filename": file_name}
+agentParam = {"gamma":args.gamma,"LR":0.005,"device":device,"ifload":False,"filename": file_name}
 save_eps = 100
 
-n_episode = 3#3001
+n_episode = 2001
 n_steps = 500
 
 if test_mode:

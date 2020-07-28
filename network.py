@@ -15,7 +15,6 @@ class Policy(nn.Module):
 
     def forward(self, x):
         x = self.affine1(x)
-        #x = self.dropout(x)
         x = F.relu(x)
         x = F.relu(self.affine2(x))
         action_scores = self.affine3(x)
@@ -51,7 +50,6 @@ class socialMask(nn.Module):
 
     def forward(self, x):
         x = self.affine1(x)
-        #x = self.dropout(x)
         x = F.relu(x)
         x = F.relu(self.affine2(x))
         action_scores = self.affine3(x)
