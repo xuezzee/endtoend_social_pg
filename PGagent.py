@@ -23,6 +23,7 @@ class PGagent():
         # init network parameters
         if agentParam["ifload"]:
             self.policy = torch.load(agentParam["filename"]+"pg"+agentParam["id"]+".pth",map_location = torch.device('cuda'))
+            #self.policy.parameters()
         else:
             self.policy = Policy(state_dim=self.state_dim, action_dim=self.action_dim).to(self.device)
             

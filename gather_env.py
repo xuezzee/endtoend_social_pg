@@ -295,9 +295,8 @@ if __name__ == "__main__":
     obs_n = env._reset()
     obs_n,reward_n,_,_ = env._step([1,1])
     #print(obs_n,reward_n)
-    for n in range(2):
+    for n in range(500):
         a = random.randint(0,7)
         b = random.randint(0,7)
         obs_n,reward_n,_,_ = env._step([a,b])
-        
-        #env._render()
+        env._render()

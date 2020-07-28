@@ -2,7 +2,7 @@ import argparse
 import gym
 import numpy as np
 from itertools import count
-
+import random
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -23,47 +23,87 @@ parser.add_argument('--seed', type=int, default=543, metavar='N',
                     help='random seed (default: 543)')
 parser.add_argument('--render', action='store_true',
                     help='render the environment')
-parser.add_argument('--log-interval', type=int, default=2, metavar='N',
+parser.add_argument('--log-interval', type=int, default=5, metavar='N',
                     help='interval between training status logs (default: 10)')
 args = parser.parse_args()
 
-
-env = GatheringEnv(2)#gym.make('CartPole-v1')
+n_agents = 1#2
+env = GatheringEnv(n_agents)#gym.make('CartPole-v1')
 env.seed(args.seed)
 torch.manual_seed(args.seed)
 
+test_mode = True
 
-model_name = "pg_social"
+
+names = {"social":"pg_social","base":"pg_indi","single":"pg_single"}
+mode = "single"
+model_name = names[mode]
 file_name  = "train_para/"+model_name
-agentParam = {"gamma":args.gamma,"LR":1e-2,"device":device,"ifload":True,"filename": file_name}
-save_eps = 10
-ifsave_model = True
-n_episode = 4#101
+agentParam = {"gamma":args.gamma,"LR":0.005,"device":device,"ifload":True,"filename": file_name}
+save_eps = 100
+
+n_episode = 3#3001
 n_steps = 500
+
+if test_mode:
+    ifsave_model = False
+    ifsave_data = False
+    render = True
+else:
+    ifsave_model = True
+    ifsave_data = True
+    render = False
+
 
 def add_para(id):
     agentParam["id"] = str(id)
     return agentParam
 
+def random_agent():
+    all_rw = []
+    for i_episode in range(n_episode):
+        ep_rw = 0
+        for t in range(n_steps):
+            actions = [ random.randint(0,7) for i in range(n_agents)]
+            n_state, n_reward, _, _ = env.step(actions)
+            ep_rw+=sum(n_reward)
+        if i_episode % args.log_interval == 0:
+            print('Episode {}\tLast reward: {:.2f}\tAverage reward: {:.2f}'.format(
+                  i_episode, ep_rw, ep_rw))
+        all_rw.append(ep_rw)
+        np.save("data/"+"random1"+".npy",all_rw)
+
+
 def main():
     #agent = PGagent(agentParam)
-    n_agents = 2
-    #multiPG = independentAgent([PGagent(agentParam) for i in range(n_agents)])
-    multiPG = socialAgents([newPG(add_para(i)) for i in range(n_agents)],agentParam)
+    all_rw = []
+    #n_agents = 1#2
+    if mode == "social":
+        multiPG = socialAgents([newPG(add_para(i)) for i in range(n_agents)],agentParam)
+    else:
+        multiPG = independentAgent([PGagent(add_para(i)) for i in range(n_agents)])
+
     for i_episode in range(n_episode):
         n_state, ep_reward = env.reset(), 0
         for t in range(n_steps):
-            actions = multiPG.select_mask_actions(n_state)#agent.select_action(state)
+            if mode == "social":
+                actions = multiPG.select_mask_actions(n_state)
+            else:
+                actions = multiPG.select_actions(n_state)##agent.select_action(state)
+            #actions = [ random.randint(0,7) for i in range(n_agents)]
             n_state, n_reward, _, _ = env.step(actions)
-            if args.render:
+            if render:
                 env.render()
             multiPG.push_reward(n_reward)
             ep_reward += sum(n_reward)
 
         running_reward = ep_reward
-        multiPG.update_agents()
-        multiPG.update_law()
-        
+        if test_mode == False:
+            multiPG.update_agents()
+
+        all_rw.append(ep_reward)
+        if i_episode % (args.log_interval*2) == 0 and ifsave_data:
+            np.save("data/"+model_name+".npy",all_rw)
         if i_episode % args.log_interval == 0:
             print('Episode {}\tLast reward: {:.2f}\tAverage reward: {:.2f}'.format(
                   i_episode, ep_reward, running_reward))
@@ -74,3 +114,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+    #random_agent()
