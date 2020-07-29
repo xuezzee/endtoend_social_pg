@@ -1,4 +1,4 @@
-# endtoend_social_pg
+# endtoend_social_AC
 ## IAC on mini map(fewer apples)
 ![image](https://github.com/xuezzee/endtoend_social_pg/blob/IAC/picture/IAC_on_mini_map.png?raw=true)
 
