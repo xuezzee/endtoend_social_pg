@@ -9,12 +9,11 @@ import torch.nn.functional as F
 import torch.optim as optim
 from torch.distributions import Categorical
 from gather_env import GatheringEnv
-from PGagent import PGagent, social_agent, newPG, IAC, social_IAC
-from network import socialMask
+from PGagent import PGagent, social_agent, newPG, IAC, social_IAC, Centralised_AC
+from network import socialMask, Centralised_Critic
 from copy import deepcopy
 from logger import Logger
 from torch.utils.tensorboard import SummaryWriter
-# from envs.ElevatorENV import Lift
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -40,13 +39,17 @@ model_name = "pg_social"
 file_name = "/Users/xue/Desktop/Social Law/saved_weight/" + model_name
 save_eps = 10
 ifsave_model = True
-# logger = Logger('./logs3')
-
+logger = Logger('./logs4')
 
 class Agents():
-    def __init__(self,agents):
+    def __init__(self,agents,state_dim):
         self.num_agent = len(agents)
         self.agents = agents
+        self.critic = Centralised_Critic(state_dim)
+        self.optimizerC = torch.optim.Adam(self.critic.parameters(),lr=0.01)
+        self.lr_schedulerC = torch.optim.lr_scheduler.StepLR(self.optimizerC, step_size=1000, gamma=0.9, last_epoch=-1)
+        for i in self.agents:
+            i.critic = self.critic
 
     def choose_action(self,state):
         actions = []
@@ -54,9 +57,27 @@ class Agents():
             actions.append(agent.choose_action(s).detach().numpy())
         return actions
 
+    def td_err(self, s, r, s_):
+        s = torch.Tensor(s).reshape((1,-1)).unsqueeze(0)
+        s_ = torch.Tensor(s_).reshape((1,-1)).unsqueeze(0)
+        v = self.critic(s)
+        v_ = self.critic(s_).detach()
+        return r + 0.9*v_ - v
+
+    def LearnCenCritic(self, s, r, s_):
+        td_err = self.td_err(s,r,s_)
+        # m = torch.log(self.agents.act_prob[a[0]]*self.agents.act_prob[a[1]])
+        loss = torch.square(td_err)
+        self.optimizerC.zero_grad()
+        loss.backward()
+        self.optimizerC.step()
+        self.lr_schedulerC.step()
+
     def update(self, state, reward, state_, action):
+        td_err = self.td_err(state,sum(reward),state_)
         for agent, s, r, s_,a in zip(self.agents, state, reward, state_, action):
-            agent.update(s,r,s_,a)
+            agent.update(s,r,s_,a,td_err)
+        self.LearnCenCritic(state,sum(reward),state_)
 
 class Social_Agents():
     def __init__(self,agents,agentParam):
@@ -93,7 +114,7 @@ def main():
     # writers = [writer = SummaryWriter('runs/fashion_mnist_experiment_1')]
     n_agents = 2
     # multiPG = independentAgent([PGagent(agentParam) for i in range(n_agents)])
-    multiPG = Agents([IAC(8,400) for i in range(n_agents)])  # create PGagents as well as a social agent
+    multiPG = Agents([Centralised_AC(8,400) for i in range(n_agents)],400)  # create PGagents as well as a social agent
     # multiPG = Social_Agents([social_IAC(8,400,agentParam) for i in range(n_agents)],agentParam)
     for i_episode in range(101):
         n_state, ep_reward = env.reset(), 0  # reset the env
@@ -115,7 +136,7 @@ def main():
         if i_episode % args.log_interval == 0:
             print('Episode {}\tLast reward: {:.2f}\tAverage reward: {:.2f}'.format(
                 i_episode, ep_reward, running_reward))
-            # logger.scalar_summary("ep_reward", ep_reward, i_episode)
+            logger.scalar_summary("ep_reward", ep_reward, i_episode)
 
         # if i_episode % save_eps == 0 and i_episode > 1 and ifsave_model:
             # multiPG.save(file_name)

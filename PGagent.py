@@ -6,7 +6,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 from torch.distributions import Categorical
-from network import Policy,socialMask
+from network import Policy,socialMask,Actor,Critic
 import copy
 import random
 
@@ -128,33 +128,33 @@ class newPG(PGagent):
         self.saved_log_probs.append(m.log_prob(action).to(self.device))
         return action.item(),probs
 
-class Actor(nn.Module):
-    def __init__(self,action_dim,state_dim):
-        super(Actor,self).__init__()
-        self.Linear1 = nn.Linear(state_dim,128)
-        # self.Dropout1 = nn.Dropout(p=0.3)
-        self.Linear2 = nn.Linear(128,action_dim)
-
-    def forward(self,x):
-        x = self.Linear1(x)
-        # x = self.Dropout1(x)
-        x = F.relu(x)
-        x = self.Linear2(x)
-        return F.softmax(x)
-
-class Critic(nn.Module):
-    def __init__(self,state_dim):
-        super(Critic,self).__init__()
-        self.Linear1 = nn.Linear(state_dim, 128)
-        # self.Dropout1 = nn.Dropout(p=0.3)
-        self.Linear2 = nn.Linear(128, 1)
-
-    def forward(self,x):
-        x = self.Linear1(x)
-        # x = self.Dropout1(x)
-        x = F.relu(x)
-        x = self.Linear2(x)
-        return x
+# class Actor(nn.Module):
+#     def __init__(self,action_dim,state_dim):
+#         super(Actor,self).__init__()
+#         self.Linear1 = nn.Linear(state_dim,128)
+#         # self.Dropout1 = nn.Dropout(p=0.3)
+#         self.Linear2 = nn.Linear(128,action_dim)
+#
+#     def forward(self,x):
+#         x = self.Linear1(x)
+#         # x = self.Dropout1(x)
+#         x = F.relu(x)
+#         x = self.Linear2(x)
+#         return F.softmax(x)
+#
+# class Critic(nn.Module):
+#     def __init__(self,state_dim):
+#         super(Critic,self).__init__()
+#         self.Linear1 = nn.Linear(state_dim, 128)
+#         # self.Dropout1 = nn.Dropout(p=0.3)
+#         self.Linear2 = nn.Linear(128, 1)
+#
+#     def forward(self,x):
+#         x = self.Linear1(x)
+#         # x = self.Dropout1(x)
+#         x = F.relu(x)
+#         x = self.Linear2(x)
+#         return x
 
 class IAC():
     def __init__(self,action_dim,state_dim):
@@ -164,6 +164,8 @@ class IAC():
         self.state_dim = state_dim
         self.optimizerA = torch.optim.Adam(self.actor.parameters(), lr = 0.001)
         self.optimizerC = torch.optim.Adam(self.critic.parameters(), lr = 0.01)
+        self.lr_scheduler = {"optA":torch.optim.lr_scheduler.StepLR(self.optimizerA,step_size=1000,gamma=0.9,last_epoch=-1),
+                             "optC":torch.optim.lr_scheduler.StepLR(self.optimizerC,step_size=1000,gamma=0.9,last_epoch=-1)}
         # self.act_prob
         # self.act_log_prob
 
@@ -188,6 +190,7 @@ class IAC():
         self.optimizerC.zero_grad()
         loss.backward()
         self.optimizerC.step()
+        self.lr_scheduler["optC"].step()
 
     def learnActor(self,s,r,s_,a):
         td_err = self.cal_tderr(s,r,s_)
@@ -197,10 +200,35 @@ class IAC():
         self.optimizerA.zero_grad()
         loss.backward()
         self.optimizerA.step()
+        self.lr_scheduler["optA"].step()
 
     def update(self,s,r,s_,a):
         self.learnCritic(s,r,s_)
         self.learnActor(s,r,s_,a)
+
+class Centralised_AC(IAC):
+    def __init__(self,action_dim,state_dim):
+        super().__init__(action_dim,state_dim)
+        self.critic = None
+
+    # def cal_tderr(self,s,r,s_):
+    #     s = torch.Tensor(s).unsqueeze(0)
+    #     s_ = torch.Tensor(s_).unsqueeze(0)
+    #     v = self.critic(s).detach()
+    #     v_ = self.critic(s_).detach()
+    #     return r + v_ - v
+
+    def learnActor(self,a,td_err):
+        m = torch.log(self.act_prob[a])
+        temp = m*td_err.detach()
+        loss = -torch.mean(temp)
+        self.optimizerA.zero_grad()
+        loss.backward()
+        self.optimizerA.step()
+        self.lr_scheduler["optA"].step()
+
+    def update(self,s,r,s_,a,td_err):
+        self.learnActor(a,td_err)
 
 class social_IAC(IAC):
     def __init__(self,action_dim,state_dim,agentParam):

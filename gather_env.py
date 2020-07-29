@@ -29,7 +29,7 @@ class GatheringEnv(gym.Env):
     viewbox_width = 10
     viewbox_depth = 10
     padding = max(viewbox_width // 2, viewbox_depth - 1)
-    agent_colors = ['red', 'yellow']
+    agent_colors = ['red', 'blue']
 
     def _text_to_map(self, text):
         m = [list(row) for row in text.splitlines()]
