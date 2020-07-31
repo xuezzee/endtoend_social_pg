@@ -324,16 +324,17 @@ class MapEnv():
         """
         map_with_agents = self.get_map_with_agents()
 
-        rgb_arr = self.map_to_colors(map_with_agents)
-        plt.imshow(rgb_arr, interpolation='nearest')
-        if filename is None:
-            plt.show(block=False)
-            plt.pause(0.2)
-            plt.clf()
-            plt.cla()
-            plt.close("all")
-        else:
-            plt.savefig(filename)
+        self._render(map_with_agents)
+        # rgb_arr = self.map_to_colors(map_with_agents)
+        # plt.imshow(rgb_arr, interpolation='nearest')
+        # if filename is None:
+        #     plt.show(block=False)
+        #     plt.pause(0.2)
+        #     plt.clf()
+        #     plt.cla()
+        #     plt.close("all")
+        # else:
+        #     plt.savefig(filename)
 
     def update_moves(self, agent_actions):
         """Converts agent action tuples into a new map and new agent positions.
@@ -726,3 +727,6 @@ class MapEnv():
             return False
         else:
             return True
+
+    def _render(self):
+        return
