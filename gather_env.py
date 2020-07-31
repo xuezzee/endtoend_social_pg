@@ -29,6 +29,7 @@ class GatheringEnv(gym.Env):
     viewbox_width = 10
     viewbox_depth = 10
     padding = max(viewbox_width // 2, viewbox_depth - 1)
+    padding = viewbox_depth - 1
     agent_colors = ['red', 'blue']
 
     def _text_to_map(self, text):
@@ -123,10 +124,10 @@ class GatheringEnv(gym.Env):
             if self.tagged[i]:
                 continue
             if self.food[a] == 1:
-                self.food[a] = -15
+                self.food[a] = -30
                 reward_n[i] = 1
             if self.beams[a]:
-                self.tagged[i] = 25
+                self.tagged[i] = 75
 
         for i, tag in enumerate(self.tagged):
             if tag == 1:

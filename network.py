@@ -55,32 +55,62 @@ class socialMask(nn.Module):
         action_scores = self.affine3(x)
         return F.softmax(action_scores, dim=1)
 
+class CNN_preprocess(nn.Module):
+    def __init__(self,width,height,channel):
+        super(CNN_preprocess,self).__init__()
+        self.Conv1 = nn.Conv2d(in_channels=3,out_channels=32,kernel_size=3,stride=1,padding=(1,1))
+        self.Conv2 = nn.Conv2d(in_channels=32,out_channels=128,kernel_size=5,stride=5)
+        self.Conv3 = nn.Conv2d(in_channels=128,out_channels=64,kernel_size=3,stride=3)
+
+
+    def forward(self,x):
+        x = self.Conv1(x)
+        x = F.relu(x)
+        x = self.Conv2(x)
+        x = F.relu(x)
+        x = self.Conv3(x)
+        x = F.relu(x)
+        return torch.flatten(x)
+
+    def get_state_dim(self):
+        return 64
+
 class Actor(nn.Module):
     def __init__(self,action_dim,state_dim):
         super(Actor,self).__init__()
         self.Linear1 = nn.Linear(state_dim,128)
-        # self.Dropout1 = nn.Dropout(p=0.3)
-        self.Linear2 = nn.Linear(128,action_dim)
+        self.Dropout1 = nn.Dropout(p=0.3)
+        self.Linear2 = nn.Linear(128,128)
+        self.Dropout2 = nn.Dropout(p=0.3)
+        self.Linear3 = nn.Linear(128,action_dim)
 
     def forward(self,x):
         x = self.Linear1(x)
-        # x = self.Dropout1(x)
+        x = self.Dropout1(x)
         x = F.relu(x)
         x = self.Linear2(x)
+        x = self.Dropout2(x)
+        x = F.relu(x)
+        x = self.Linear3(x)
         return F.softmax(x)
 
 class Critic(nn.Module):
     def __init__(self,state_dim):
         super(Critic,self).__init__()
         self.Linear1 = nn.Linear(state_dim, 128)
-        # self.Dropout1 = nn.Dropout(p=0.3)
-        self.Linear2 = nn.Linear(128, 1)
+        self.Dropout1 = nn.Dropout(p=0.3)
+        self.Linear2 = nn.Linear(128, 128)
+        self.Dropout2 = nn.Dropout(p=0.3)
+        self.Linear3 = nn.Linear(128,1)
 
     def forward(self,x):
         x = self.Linear1(x)
-        # x = self.Dropout1(x)
+        x = self.Dropout1(x)
         x = F.relu(x)
         x = self.Linear2(x)
+        x = self.Dropout2(x)
+        x = F.relu(x)
+        x = self.Linear3(x)
         return x
 
 class Centralised_Critic(nn.Module):

@@ -2,14 +2,17 @@ import argparse
 import gym
 import numpy as np
 from itertools import count
-
+import random
 import torch
+# import cv2
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 from torch.distributions import Categorical
-from gather_env import GatheringEnv
+# from gather_env import GatheringEnv
+from cleanup import CleanupEnv
 from PGagent import PGagent, social_agent, newPG, IAC, social_IAC
+import matplotlib.pyplot as plt
 from network import socialMask
 from copy import deepcopy
 from logger import Logger
@@ -29,9 +32,10 @@ parser.add_argument('--log-interval', type=int, default=2, metavar='N',
                     help='interval between training status logs (default: 10)')
 args = parser.parse_args()
 
-env = GatheringEnv(2)  # gym.make('CartPole-v1')
-env.seed(args.seed)
-torch.manual_seed(args.seed)
+# env = GatheringEnv(2)  # gym.make('CartPole-v1')
+env = CleanupEnv(num_agents = 5)
+# env.seed(args.seed)
+# torch.manual_seed(args.seed)
 
 agentParam = {"gamma": args.gamma, "LR": 1e-2, "device": device}
 # agentParam =
@@ -40,23 +44,29 @@ model_name = "pg_social"
 file_name = "/Users/xue/Desktop/Social Law/saved_weight/" + model_name
 save_eps = 10
 ifsave_model = True
-# logger = Logger('./logs5')
+# logger = Logger('./logs6')
 
 
 class Agents():
-    def __init__(self,agents):
+    def __init__(self,agents,exploration=0.5):
         self.num_agent = len(agents)
         self.agents = agents
+        self.exploration = exploration
+        self.epsilon = 0.95
+
 
     def choose_action(self,state):
-        actions = []
-        for agent, s in zip(self.agents, state):
-            actions.append(agent.choose_action(s).detach().numpy())
+        actions = {}
+        agentID = list(state.keys())
+        i = 0
+        for agent, s in zip(self.agents, state.values()):
+            actions[agentID[i]] = int(agent.choose_action(s/255.).detach().numpy())
+            i += 1
         return actions
 
     def update(self, state, reward, state_, action):
-        for agent, s, r, s_,a in zip(self.agents, state, reward, state_, action):
-            agent.update(s,r,s_,a)
+        for agent, s, r, s_,a in zip(self.agents, list(state), list(reward), list(state_), list(action)):
+            agent.update(s/255.,r,s_/255.,a)
 
 class Social_Agents():
     def __init__(self,agents,agentParam):
@@ -91,21 +101,22 @@ class Social_Agents():
 def main():
     # agent = PGagent(agentParam)
     # writers = [writer = SummaryWriter('runs/fashion_mnist_experiment_1')]
-    n_agents = 2
+    n_agents = 5
     # multiPG = independentAgent([PGagent(agentParam) for i in range(n_agents)])
-    multiPG = Agents([IAC(8,400) for i in range(n_agents)])  # create PGagents as well as a social agent
+    multiPG = Agents([IAC(9,675,CNN=True,width=15,height=15,channel=3) for i in range(n_agents)])  # create PGagents as well as a social agent
     # multiPG = Social_Agents([social_IAC(8,400,agentParam) for i in range(n_agents)],agentParam)
     for i_episode in range(101):
         n_state, ep_reward = env.reset(), 0  # reset the env
-        for t in range(1, 500):
+        for t in range(1, 1500):
             actions = multiPG.choose_action(n_state)  # agent.select_action(state)   #select masked actions for every agent
             # actions = multiPG.select_masked_actions(n_state)
             n_state_, n_reward, _, _ = env.step(actions)  # interact with the env
             if args.render:  # render or not
                 env.render()
+            # plt.close()
             # multiPG.push_reward(n_reward)  # each agent receive their own reward, the law receive the summed reward
-            ep_reward += sum(n_reward)  # record the total reward
-            multiPG.update(n_state, n_reward, n_state_, actions)
+            ep_reward += sum(n_reward.values())  # record the total reward
+            multiPG.update(n_state.values(), n_reward.values(), n_state_.values(), actions.values())
             # multiPG.update_law()
             n_state = n_state_
 

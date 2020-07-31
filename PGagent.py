@@ -6,8 +6,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 from torch.distributions import Categorical
-from network import Policy,socialMask,Actor,Critic
+from network import Policy,socialMask,Actor,Critic,CNN_preprocess
 import copy
+import itertools
 import random
 
 class PGagent():
@@ -157,29 +158,54 @@ class newPG(PGagent):
 #         return x
 
 class IAC():
-    def __init__(self,action_dim,state_dim):
+    def __init__(self,action_dim,state_dim,CNN=False, width=None, height=None, channel=None):
+        self.CNN = CNN
+        if CNN:
+            self.CNN_preprocessA = CNN_preprocess(width,height,channel)
+            self.CNN_preprocessC = CNN_preprocess(width,height,channel)
+            state_dim = self.CNN_preprocessA.get_state_dim()
         self.actor = Actor(action_dim,state_dim)
         self.critic = Critic(state_dim)
         self.action_dim = action_dim
         self.state_dim = state_dim
+        self.noise_epsilon = 0.99
+        self.constant_decay = 0.1
         self.optimizerA = torch.optim.Adam(self.actor.parameters(), lr = 0.001)
-        self.optimizerC = torch.optim.Adam(self.critic.parameters(), lr = 0.01)
+        self.optimizerC = torch.optim.Adam(self.critic.parameters(), lr = 0.001)
         self.lr_scheduler = {"optA":torch.optim.lr_scheduler.StepLR(self.optimizerA,step_size=1000,gamma=0.9,last_epoch=-1),
                              "optC":torch.optim.lr_scheduler.StepLR(self.optimizerC,step_size=1000,gamma=0.9,last_epoch=-1)}
+        if CNN:
+            # self.CNN_preprocessA = CNN_preprocess(width,height,channel)
+            # self.CNN_preprocessC = CNN_preprocess
+            self.optimizerA = torch.optim.Adam(itertools.chain(self.CNN_preprocessA.parameters(),self.actor.parameters()),lr=0.0001)
+            self.optimizerC = torch.optim.Adam(itertools.chain(self.CNN_preprocessC.parameters(),self.critic.parameters()),lr=0.001)
+            self.lr_scheduler = {"optA": torch.optim.lr_scheduler.StepLR(self.optimizerA, step_size=10000, gamma=0.9, last_epoch=-1),
+                                 "optC": torch.optim.lr_scheduler.StepLR(self.optimizerC, step_size=10000, gamma=0.9, last_epoch=-1)}
         # self.act_prob
         # self.act_log_prob
 
     def choose_action(self,s):
-        s = torch.Tensor(s).squeeze(0)
-        self.act_prob = self.actor(s)+0.00001
+        s = torch.Tensor(s).unsqueeze(0)
+        if self.CNN:
+            s = self.CNN_preprocessA(s.reshape((1,3,15,15)))
+        self.act_prob = self.actor(s) + torch.abs(torch.randn(self.action_dim)*0.05*self.constant_decay)
+        self.constant_decay = self.constant_decay*self.noise_epsilon
+        self.act_prob = self.act_prob/torch.sum(self.act_prob).detach()
         m = torch.distributions.Categorical(self.act_prob)
         # self.act_log_prob = m.log_prob(m.sample())
         temp = m.sample()
         return temp
 
-    def cal_tderr(self,s,r,s_):
+    def cal_tderr(self,s,r,s_,A_or_C=None):
         s = torch.Tensor(s).unsqueeze(0)
         s_ = torch.Tensor(s_).unsqueeze(0)
+        if self.CNN:
+            if A_or_C == 'A':
+                s = self.CNN_preprocessA(s.reshape(1,3,15,15))
+                s_ = self.CNN_preprocessA(s_.reshape(1,3,15,15))
+            else:
+                s = self.CNN_preprocessC(s.reshape(1,3,15,15))
+                s_ = self.CNN_preprocessC(s_.reshape(1,3,15,15))
         v_ = self.critic(s_).detach()
         v = self.critic(s)
         return r + 0.9*v_ - v
@@ -243,7 +269,6 @@ class social_IAC(IAC):
         state = torch.from_numpy(state).float().unsqueeze(0)
         self.act_prob = self.actor(state)[0]
         new_probs = self.maskFunc(self.act_prob.detach(),masks)
-        print(new_probs)
         m = Categorical(new_probs)
         action = m.sample()
         self.saved_log_probs.append(m.log_prob(action).to(self.device))
