@@ -1,4 +1,5 @@
-# endtoend_social_AC
+# end to end_social_AC
+改的比较乱😅
 ## IAC on mini map(fewer apples)
 ![image](https://github.com/xuezzee/endtoend_social_pg/blob/IAC/picture/IAC_on_mini_map.png?raw=true)
 
