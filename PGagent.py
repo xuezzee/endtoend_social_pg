@@ -1,12 +1,12 @@
 import numpy as np
 from itertools import count
-
+from collections import deque
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 from torch.distributions import Categorical
-from network import Policy,socialMask,Actor,Critic,CNN_preprocess
+from network import Policy,socialMask,Actor,Critic,CNN_preprocess,CriticRNN,ActorRNN
 import copy
 import itertools
 import random
@@ -168,8 +168,8 @@ class IAC():
         self.critic = Critic(state_dim)
         self.action_dim = action_dim
         self.state_dim = state_dim
-        self.noise_epsilon = 0.99
-        self.constant_decay = 0.1
+        self.noise_epsilon = 0.999
+        self.constant_decay = 1
         self.optimizerA = torch.optim.Adam(self.actor.parameters(), lr = 0.001)
         self.optimizerC = torch.optim.Adam(self.critic.parameters(), lr = 0.001)
         self.lr_scheduler = {"optA":torch.optim.lr_scheduler.StepLR(self.optimizerA,step_size=1000,gamma=0.9,last_epoch=-1),
@@ -188,7 +188,7 @@ class IAC():
         s = torch.Tensor(s).unsqueeze(0)
         if self.CNN:
             s = self.CNN_preprocessA(s.reshape((1,3,15,15)))
-        self.act_prob = self.actor(s) + torch.abs(torch.randn(self.action_dim)*0.05*self.constant_decay)
+        self.act_prob = self.actor(s) + torch.abs(torch.randn(self.action_dim)*0.*self.constant_decay)
         self.constant_decay = self.constant_decay*self.noise_epsilon
         self.act_prob = self.act_prob/torch.sum(self.act_prob).detach()
         m = torch.distributions.Categorical(self.act_prob)
@@ -196,16 +196,12 @@ class IAC():
         temp = m.sample()
         return temp
 
-    def cal_tderr(self,s,r,s_,A_or_C=None):
+    def cal_tderr(self,s,r,s_):
         s = torch.Tensor(s).unsqueeze(0)
         s_ = torch.Tensor(s_).unsqueeze(0)
         if self.CNN:
-            if A_or_C == 'A':
-                s = self.CNN_preprocessA(s.reshape(1,3,15,15))
-                s_ = self.CNN_preprocessA(s_.reshape(1,3,15,15))
-            else:
-                s = self.CNN_preprocessC(s.reshape(1,3,15,15))
-                s_ = self.CNN_preprocessC(s_.reshape(1,3,15,15))
+            s = self.CNN_preprocessC(s.reshape(1,3,15,15))
+            s_ = self.CNN_preprocessC(s_.reshape(1,3,15,15))
         v_ = self.critic(s_).detach()
         v = self.critic(s)
         return r + 0.9*v_ - v
@@ -220,7 +216,7 @@ class IAC():
 
     def learnActor(self,s,r,s_,a):
         td_err = self.cal_tderr(s,r,s_)
-        m = torch.log(self.act_prob[a])
+        m = torch.log(self.act_prob[0][a]) #in cleanup there should not be a [0], in IAC the [0] is necessary
         temp = m*td_err.detach()
         loss = -torch.mean(temp)
         self.optimizerA.zero_grad()
@@ -276,3 +272,69 @@ class social_IAC(IAC):
 
     def maskFunc(self,prob,mask):
         return F.softmax(torch.mul(prob,mask))
+
+'''
+This is the RNN version of Actor Crtic, in order to address the kind of problems where the temporal features are included
+'''
+
+class IAC_RNN(IAC):
+    def __init__(self,action_dim,state_dim,CNN=True):
+        super().__init__(action_dim,state_dim)
+        self.maxsize_queue = 100
+        self.CNN = CNN
+        if CNN:
+            self.queue = deque([torch.zeros(15**2*3).reshape(1,15,15,3) for i in range(self.maxsize_queue)])
+        else:
+            self.queue = deque([torch.zeros(state_dim).reshape(1,state_dim) for i in range(self.maxsize_queue)])
+        self.actor = ActorRNN(state_dim,action_dim,CNN)
+        self.critic = CriticRNN(state_dim,action_dim,CNN)
+        self.optimizerA = torch.optim.Adam(self.actor.parameters(),lr=0.001)
+        self.optimizerC = torch.optim.Adam(self.critic.parameters(),lr=0.01)
+
+
+    def input_preprocess(self):
+        return torch.Tensor
+
+    def collect_states(self,state):
+        self.queue.pop()
+        self.queue.insert(0,state)
+
+    def choose_action(self,s):
+        s = torch.Tensor(s).unsqueeze(0)
+        self.collect_states(s)
+        self.queue.reverse()
+        if self.CNN:
+            self.act_prob = self.actor(torch.cat(list(self.queue)).reshape((-1,3,15,15))) + torch.abs(
+                torch.randn(self.action_dim) * 0. * self.constant_decay)
+        else:
+            # t = torch.cat(list(self.queue)).reshape((-1,self.state_dim))
+            self.act_prob = self.actor(torch.cat(list(self.queue)).reshape((1,-1,self.state_dim))) + torch.abs(
+                torch.randn(self.action_dim) * 0. * self.constant_decay)
+        self.queue.reverse()
+        # self.act_prob = self.actor(s) + torch.abs(torch.randn(self.action_dim)*0.05*self.constant_decay)
+        self.constant_decay = self.constant_decay*self.noise_epsilon
+        # self.act_prob[0][4]=0.
+        self.act_prob = self.act_prob/torch.sum(self.act_prob).detach()
+        m = torch.distributions.Categorical(self.act_prob)
+        # self.act_log_prob = m.log_prob(m.sample())
+        temp = m.sample()
+        return temp
+
+    def cal_tderr(self,s,r,s_):
+        s = torch.Tensor(s).unsqueeze(0)
+        s_ = torch.Tensor(s_).unsqueeze(0)
+        temp_q = copy.deepcopy(self.queue)
+        temp_q.pop()
+        temp_q.insert(0,s_)
+        temp_q.reverse()
+        if self.CNN:
+            v_ = self.critic(torch.cat(list(temp_q)).reshape((-1,3,15,15))).detach()
+            self.queue.reverse()
+            v = self.critic(torch.cat(list(self.queue)).reshape(-1,3,15,15))
+            self.queue.reverse()
+        else:
+            v_ = self.critic(torch.cat(list(temp_q)).reshape((1,-1,self.state_dim))).detach()
+            self.queue.reverse()
+            v = self.critic(torch.cat(list(self.queue)).reshape(1,-1,self.state_dim))
+            self.queue.reverse()
+        return r + 0.97*v_ - v
