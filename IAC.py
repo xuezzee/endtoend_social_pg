@@ -9,7 +9,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 from torch.distributions import Categorical
 from gather_env import GatheringEnv
-from PGagent import PGagent, social_agent, newPG, IAC, social_IAC
+from PGagent import PGagent, social_agent, newPG, IAC, social_IAC, IAC_RNN
 from network import socialMask
 from copy import deepcopy
 from logger import Logger
@@ -51,7 +51,7 @@ class Agents():
     def choose_action(self,state):
         actions = []
         for agent, s in zip(self.agents, state):
-            actions.append(agent.choose_action(s).detach().numpy())
+            actions.append(agent.choose_action(s).detach().numpy()[0])
         return actions
 
     def update(self, state, reward, state_, action):
@@ -72,7 +72,7 @@ class Social_Agents():
             pron_mask_copy = prob_mask  # deepcopy(prob_mask)
             action, prob_indi = ag.select_masked_action(state[i], pron_mask_copy)
             self.Law.pi_step.append(prob_indi)  # pi_step is the list of unmasked policy(prob ditribution) for each agent
-            actions.append(action)
+            actions.append(action[0])
         return actions
 
     def update(self, state, reward, state_, action):
@@ -93,7 +93,7 @@ def main():
     # writers = [writer = SummaryWriter('runs/fashion_mnist_experiment_1')]
     n_agents = 2
     # multiPG = independentAgent([PGagent(agentParam) for i in range(n_agents)])
-    multiPG = Agents([IAC(8,400) for i in range(n_agents)])  # create PGagents as well as a social agent
+    multiPG = Agents([IAC_RNN(8,400,CNN=False) for i in range(n_agents)])  # create PGagents as well as a social agent
     # multiPG = Social_Agents([social_IAC(8,400,agentParam) for i in range(n_agents)],agentParam)
     for i_episode in range(101):
         n_state, ep_reward = env.reset(), 0  # reset the env

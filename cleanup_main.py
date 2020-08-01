@@ -11,7 +11,7 @@ import torch.optim as optim
 from torch.distributions import Categorical
 # from gather_env import GatheringEnv
 from cleanup import CleanupEnv
-from PGagent import PGagent, social_agent, newPG, IAC, social_IAC
+from PGagent import PGagent, social_agent, newPG, IAC, social_IAC, IAC_RNN
 import matplotlib.pyplot as plt
 from network import socialMask
 from copy import deepcopy
@@ -28,12 +28,12 @@ parser.add_argument('--seed', type=int, default=543, metavar='N',
                     help='random seed (default: 543)')
 parser.add_argument('--render', default=True, action='store_true',
                     help='render the environment')
-parser.add_argument('--log-interval', type=int, default=2, metavar='N',
+parser.add_argument('--log-interval', type=int, default=1, metavar='N',
                     help='interval between training status logs (default: 10)')
 args = parser.parse_args()
 
 # env = GatheringEnv(2)  # gym.make('CartPole-v1')
-env = CleanupEnv(num_agents = 5)
+env = CleanupEnv(num_agents = 1)
 # env.seed(args.seed)
 # torch.manual_seed(args.seed)
 
@@ -41,10 +41,10 @@ agentParam = {"gamma": args.gamma, "LR": 1e-2, "device": device}
 # agentParam =
 
 model_name = "pg_social"
-file_name = "/Users/xue/Desktop/Social Law/saved_weight/" + model_name
+file_name = "/Users/xue/Desktop/Social_Law/saved_weight/" + model_name
 save_eps = 10
 ifsave_model = True
-# logger = Logger('./logs6')
+logger = Logger('./logs')
 
 
 class Agents():
@@ -67,6 +67,10 @@ class Agents():
     def update(self, state, reward, state_, action):
         for agent, s, r, s_,a in zip(self.agents, list(state), list(reward), list(state_), list(action)):
             agent.update(s/255.,r,s_/255.,a)
+
+    def save(self, file_name):
+        for i, ag in zip(range(self.num_agent), self.agents):
+            torch.save(ag.policy, file_name + "pg" + str(i) + ".pth")
 
 class Social_Agents():
     def __init__(self,agents,agentParam):
@@ -101,13 +105,13 @@ class Social_Agents():
 def main():
     # agent = PGagent(agentParam)
     # writers = [writer = SummaryWriter('runs/fashion_mnist_experiment_1')]
-    n_agents = 5
+    n_agents = 1
     # multiPG = independentAgent([PGagent(agentParam) for i in range(n_agents)])
-    multiPG = Agents([IAC(9,675,CNN=True,width=15,height=15,channel=3) for i in range(n_agents)])  # create PGagents as well as a social agent
+    multiPG = Agents([IAC_RNN(9,675) for i in range(n_agents)])  # create PGagents as well as a social agent
     # multiPG = Social_Agents([social_IAC(8,400,agentParam) for i in range(n_agents)],agentParam)
     for i_episode in range(101):
         n_state, ep_reward = env.reset(), 0  # reset the env
-        for t in range(1, 1500):
+        for t in range(1, 1000):
             actions = multiPG.choose_action(n_state)  # agent.select_action(state)   #select masked actions for every agent
             # actions = multiPG.select_masked_actions(n_state)
             n_state_, n_reward, _, _ = env.step(actions)  # interact with the env
@@ -126,11 +130,11 @@ def main():
         if i_episode % args.log_interval == 0:
             print('Episode {}\tLast reward: {:.2f}\tAverage reward: {:.2f}'.format(
                 i_episode, ep_reward, running_reward))
-            # logger.scalar_summary("ep_reward", ep_reward, i_episode)
+            logger.scalar_summary("ep_reward", ep_reward, i_episode)
 
         # if i_episode % save_eps == 0 and i_episode > 1 and ifsave_model:
-            # multiPG.save(file_name)
-        #
+        #     multiPG.save(file_name)
+        # #
 
 
 if __name__ == '__main__':

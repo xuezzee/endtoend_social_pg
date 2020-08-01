@@ -3,10 +3,11 @@ import itertools
 import os.path
 import tkinter as tk
 import sys
-#sys.path.append("utils")
+# sys.path.append("utils")
 import os
-#os.chdir("utils")
-print("os getcwd... ",os.getcwd())
+
+# os.chdir("utils")
+print("os getcwd... ", os.getcwd())
 import gym
 import gym.envs.registration
 import gym.spaces
@@ -29,7 +30,6 @@ class GatheringEnv(gym.Env):
     viewbox_width = 10
     viewbox_depth = 10
     padding = max(viewbox_width // 2, viewbox_depth - 1)
-    padding = viewbox_depth - 1
     agent_colors = ['red', 'blue']
 
     def _text_to_map(self, text):
@@ -41,11 +41,12 @@ class GatheringEnv(gym.Env):
 
         def pad(a):
             return np.pad(a, self.padding + 1, 'constant')
+
         a = np.array(m).T
         self.initial_food = pad(a == 'O').astype(np.int)
         self.walls = pad(a == '#').astype(np.int)
 
-    def __init__(self, n_agents=1, map_name='default_small'):
+    def __init__(self, n_agents=1, map_name='region_multi_entrance'):
         self.n_agents = n_agents
         self.root = None
         if not os.path.exists(map_name):
@@ -58,8 +59,9 @@ class GatheringEnv(gym.Env):
         self.width = self.initial_food.shape[0]
         self.height = self.initial_food.shape[1]
         self.state_size = self.viewbox_width * self.viewbox_depth * 4
-        self.a_action_space = gym.spaces.Discrete(8) #gym.spaces.MultiDiscrete([1,8])#([[1, 8]] * n_agents)
-        self.a_observation_space = gym.spaces.Box(low=-np.inf, high=+np.inf, shape=(self.state_size,))# gym.spaces.MultiDiscrete([[1, 2]] * self.state_size)#([[[1, 2]] * self.state_size] * n_agents)
+        self.a_action_space = gym.spaces.Discrete(8)  # gym.spaces.MultiDiscrete([1,8])#([[1, 8]] * n_agents)
+        self.a_observation_space = gym.spaces.Box(low=-np.inf, high=+np.inf, shape=(
+        self.state_size,))  # gym.spaces.MultiDiscrete([[1, 2]] * self.state_size)#([[[1, 2]] * self.state_size] * n_agents)
         self.action_space = []
         self.observation_space = []
         for i in range(self.n_agents):
@@ -85,8 +87,8 @@ class GatheringEnv(gym.Env):
             a = (a + orientation) % 4
             movement_n[i] = [
                 (0, -1),  # up/forward
-                (1, 0),   # right
-                (0, 1),   # down/backward
+                (1, 0),  # right
+                (0, 1),  # down/backward
                 (-1, 0),  # left
             ][a]
         next_locations = [a for a in self.agents]
@@ -124,10 +126,10 @@ class GatheringEnv(gym.Env):
             if self.tagged[i]:
                 continue
             if self.food[a] == 1:
-                self.food[a] = -30
+                self.food[a] = -15
                 reward_n[i] = 1
             if self.beams[a]:
-                self.tagged[i] = 75
+                self.tagged[i] = 25
 
         for i, tag in enumerate(self.tagged):
             if tag == 1:
@@ -146,9 +148,9 @@ class GatheringEnv(gym.Env):
         right = left if width % 2 == 0 else left + 1
         x, y = self.agents[agent_index]
         return tuple(itertools.starmap(slice, (
-            ((x - left, x + right), (y - offset, y - offset - depth, -1)),      # up
-            ((x + offset, x + offset + depth), (y - left, y + right)),          # right
-            ((x + left, x - right, -1), (y + offset, y + offset + depth)),      # down
+            ((x - left, x + right), (y - offset, y - offset - depth, -1)),  # up
+            ((x + offset, x + offset + depth), (y - left, y + right)),  # right
+            ((x + left, x - right, -1), (y + offset, y + offset + depth)),  # down
             ((x - offset, x - offset - depth, -1), (y + left, y - right, -1)),  # left
         )[self.orientations[agent_index]]))
 
@@ -176,7 +178,7 @@ class GatheringEnv(gym.Env):
 
     def _reset(self):
         self.food = self.initial_food.copy()
-        #print("food...   ",self.food.shape)
+        # print("food...   ",self.food.shape)
         p = self.padding
         self.walls[p:-p, p] = 1
         self.walls[p:-p, -p - 1] = 1
@@ -186,7 +188,7 @@ class GatheringEnv(gym.Env):
         self.beams = np.zeros_like(self.food)
 
         self.agents = [(i + self.padding + 1, self.padding + 1) for i in range(self.n_agents)]
-        #print("agents...  ",self.agents)
+        # print("agents...  ",self.agents)
         self.spawn_points = list(self.agents)
         self.orientations = [UP for _ in self.agents]
         self.tagged = [0 for _ in self.agents]
@@ -272,14 +274,15 @@ class GatheringEnv(gym.Env):
     def __del__(self):
         self.close()
 
-    def step(self,action_n):
+    def step(self, action_n):
         return self._step(action_n)
 
     def reset(self):
         return self._reset()
-    
+
     def render(self):
         return self._render()
+
 
 _spec = {
     'id': 'Gathering-v0',
@@ -287,17 +290,15 @@ _spec = {
     'reward_threshold': 100,
 }
 
-
 gym.envs.registration.register(**_spec)
-
 
 if __name__ == "__main__":
     env = GatheringEnv(2)
     obs_n = env._reset()
-    obs_n,reward_n,_,_ = env._step([1,1])
-    #print(obs_n,reward_n)
+    obs_n, reward_n, _, _ = env._step([1, 1])
+    # print(obs_n,reward_n)
     for n in range(500):
-        a = random.randint(0,7)
-        b = random.randint(0,7)
-        obs_n,reward_n,_,_ = env._step([a,b])
+        a = random.randint(0, 7)
+        b = random.randint(0, 7)
+        obs_n, reward_n, _, _ = env._step([a, b])
         env._render()

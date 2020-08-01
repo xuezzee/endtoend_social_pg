@@ -12,7 +12,7 @@ from torch.distributions import Categorical
 # from gather_env import GatheringEnv
 from cleanup import CleanupEnv
 from harvest import HarvestEnv
-from PGagent import PGagent, social_agent, newPG, IAC, social_IAC
+from PGagent import PGagent, social_agent, newPG, IAC, social_IAC, IAC_RNN
 import matplotlib.pyplot as plt
 from network import socialMask
 from copy import deepcopy
@@ -104,11 +104,11 @@ def main():
     # writers = [writer = SummaryWriter('runs/fashion_mnist_experiment_1')]
     n_agents = 2
     # multiPG = independentAgent([PGagent(agentParam) for i in range(n_agents)])
-    multiPG = Agents([IAC(8,675,CNN=True,width=15,height=15,channel=3) for i in range(n_agents)])  # create PGagents as well as a social agent
+    multiPG = Agents([IAC_RNN(8,675) for i in range(n_agents)])  # create PGagents as well as a social agent
     # multiPG = Social_Agents([social_IAC(8,400,agentParam) for i in range(n_agents)],agentParam)
     for i_episode in range(101):
         n_state, ep_reward = env.reset(), 0  # reset the env
-        for t in range(1, 100):
+        for t in range(1, 500):
             actions = multiPG.choose_action(n_state)  # agent.select_action(state)   #select masked actions for every agent
             # actions = multiPG.select_masked_actions(n_state)
             n_state_, n_reward, _, _ = env.step(actions)  # interact with the env

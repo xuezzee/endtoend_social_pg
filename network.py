@@ -86,11 +86,11 @@ class Actor(nn.Module):
 
     def forward(self,x):
         x = self.Linear1(x)
-        x = self.Dropout1(x)
+        # x = self.Dropout1(x)
         x = F.relu(x)
-        x = self.Linear2(x)
-        x = self.Dropout2(x)
-        x = F.relu(x)
+        # x = self.Linear2(x)
+        # x = self.Dropout2(x)
+        # x = F.relu(x)
         x = self.Linear3(x)
         return F.softmax(x)
 
@@ -105,11 +105,11 @@ class Critic(nn.Module):
 
     def forward(self,x):
         x = self.Linear1(x)
-        x = self.Dropout1(x)
+        # x = self.Dropout1(x)
         x = F.relu(x)
-        x = self.Linear2(x)
-        x = self.Dropout2(x)
-        x = F.relu(x)
+        # x = self.Linear2(x)
+        # x = self.Dropout2(x)
+        # x = F.relu(x)
         x = self.Linear3(x)
         return x
 
@@ -124,6 +124,88 @@ class Centralised_Critic(nn.Module):
         x = F.relu(x)
         x = self.Linear2(x)
         return x
+
+class ActorRNN(nn.Module):
+    def __init__(self,state_dim,action_dim,CNN=True):
+        super(ActorRNN, self).__init__()
+        self.CNN = CNN
+        if CNN:
+            # self.Conv1 = nn.Conv2d(in_channels=3,out_channels=32,kernel_size=3,stride=1,padding=(1,1))
+            self.Conv2 = nn.Conv2d(in_channels=3,out_channels=64,kernel_size=5,stride=1,padding=(2,2))
+            self.Pool2 = nn.MaxPool2d(kernel_size=5,stride=5)
+            self.Conv3 = nn.Conv2d(in_channels=64,out_channels=16,kernel_size=3,stride=1,padding=(1,1))
+            self.Pool3 = nn.MaxPool2d(kernel_size=3,stride=3)
+            self.rnn = nn.GRU(
+                input_size=16,
+                hidden_size=128,
+                num_layers=1,
+            )
+            self.out = nn.Linear(128,action_dim)
+        else:
+            self.rnn = nn.GRU(
+                input_size=state_dim,
+                hidden_size=128,
+                num_layers=1,
+            )
+            self.out = nn.Linear(128,action_dim)
+
+    def forward(self,x):
+        if self.CNN:
+            # x = self.Conv1(x)
+            # x = F.relu(x)
+            x = self.Conv2(x)
+            x = F.relu(x)
+            x = self.Pool2(x)
+            x = self.Conv3(x)
+            x = F.relu(x)
+            x = self.Pool3(x)
+            x = torch.flatten(x,start_dim=1,end_dim=-1).unsqueeze(0)
+        x, h_n = self.rnn(x,None)
+        x = F.relu(x)
+        x = self.out(x)[:,-1,:]
+        return F.softmax(x)
+
+class CriticRNN(nn.Module):
+    def __init__(self,state_dim,action_dim,CNN=True):
+        super(CriticRNN, self).__init__()
+        self.CNN = CNN
+        if CNN:
+            # self.Conv1 = nn.Conv2d(in_channels=3,out_channels=32,kernel_size=3,stride=1,padding=(1,1))
+            self.Conv2 = nn.Conv2d(in_channels=3,out_channels=64,kernel_size=5,stride=1,padding=(2,2))
+            self.Pool2 = nn.MaxPool2d(kernel_size=5,stride=5)
+            self.Conv3 = nn.Conv2d(in_channels=64,out_channels=16,kernel_size=3,stride=1,padding=(1,1))
+            self.Pool3 = nn.MaxPool2d(kernel_size=3,stride=3)
+            self.rnn = nn.GRU(
+                input_size=16,
+                hidden_size=128,
+                num_layers=1,
+            )
+            self.out = nn.Linear(128,1)
+        else:
+            self.rnn = nn.GRU(
+                input_size=state_dim,
+                hidden_size=128,
+                num_layers=1,
+            )
+            self.out = nn.Linear(128,1)
+
+    def forward(self,x):
+        if self.CNN:
+            # x = self.Conv1(x)
+            # x = F.relu(x)
+            x = self.Conv2(x)
+            x = F.relu(x)
+            x = self.Pool2(x)
+            x = self.Conv3(x)
+            x = F.relu(x)
+            x = self.Pool3(x)
+            x = torch.flatten(x,start_dim=1,end_dim=-1).unsqueeze(0)
+        x, h_n = self.rnn(x,None)
+        x = F.relu(x)
+        x = self.out(x)[:,-1,:]
+        return x
+
+
 
 if __name__ == "__main__":
     model_name = "pg_social"
