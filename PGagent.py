@@ -158,12 +158,13 @@ class newPG(PGagent):
 #         return x
 
 class IAC():
-    def __init__(self,action_dim,state_dim,CNN=False, width=None, height=None, channel=None):
+    def __init__(self,action_dim,state_dim,CNN=False, width=None, height=None, channel=None, device = 'cpu'):
         self.CNN = CNN
         if CNN:
             self.CNN_preprocessA = CNN_preprocess(width,height,channel)
             self.CNN_preprocessC = CNN_preprocess(width,height,channel)
             state_dim = self.CNN_preprocessA.get_state_dim()
+        self.device = device
         self.actor = Actor(action_dim,state_dim)
         self.critic = Critic(state_dim)
         self.action_dim = action_dim
@@ -171,8 +172,8 @@ class IAC():
         self.noise_epsilon = 0.999
         self.constant_decay = 1
         self.optimizerA = torch.optim.Adam(self.actor.parameters(), lr = 0.001)
-        self.optimizerC = torch.optim.Adam(self.critic.parameters(), lr = 0.001)
-        self.lr_scheduler = {"optA":torch.optim.lr_scheduler.StepLR(self.optimizerA,step_size=1000,gamma=0.9,last_epoch=-1),
+        self.optimizerC = torch.optim.Adam(self.critic.parameters(), lr = 0.01)
+        self.lr_scheduler = {"optA":torch.optim.lr_scheduler.StepLR(self.optimizerA,step_size=1000,gamma=0.95,last_epoch=-1),
                              "optC":torch.optim.lr_scheduler.StepLR(self.optimizerC,step_size=1000,gamma=0.9,last_epoch=-1)}
         if CNN:
             # self.CNN_preprocessA = CNN_preprocess(width,height,channel)
@@ -185,7 +186,7 @@ class IAC():
         # self.act_log_prob
 
     def choose_action(self,s):
-        s = torch.Tensor(s).unsqueeze(0)
+        s = torch.Tensor(s).unsqueeze(0).to(self.device)
         if self.CNN:
             s = self.CNN_preprocessA(s.reshape((1,3,15,15)))
         self.act_prob = self.actor(s) + torch.abs(torch.randn(self.action_dim)*0.*self.constant_decay)
@@ -197,8 +198,8 @@ class IAC():
         return temp
 
     def cal_tderr(self,s,r,s_):
-        s = torch.Tensor(s).unsqueeze(0)
-        s_ = torch.Tensor(s_).unsqueeze(0)
+        s = torch.Tensor(s).unsqueeze(0).to(self.device)
+        s_ = torch.Tensor(s_).unsqueeze(0).to(self.device)
         if self.CNN:
             s = self.CNN_preprocessC(s.reshape(1,3,15,15))
             s_ = self.CNN_preprocessC(s_.reshape(1,3,15,15))
@@ -216,7 +217,7 @@ class IAC():
 
     def learnActor(self,s,r,s_,a):
         td_err = self.cal_tderr(s,r,s_)
-        m = torch.log(self.act_prob[0][a]) #in cleanup there should not be a [0], in IAC the [0] is necessary
+        m = torch.log(self.act_prob[0][a]).to(self.device) #in cleanup there should not be a [0], in IAC the [0] is necessary
         temp = m*td_err.detach()
         loss = -torch.mean(temp)
         self.optimizerA.zero_grad()
@@ -241,7 +242,7 @@ class Centralised_AC(IAC):
     #     return r + v_ - v
 
     def learnActor(self,a,td_err):
-        m = torch.log(self.act_prob[a])
+        m = torch.log(self.act_prob[0][a]).to(self.device)   #modified!!!!!!!!!! added [0]
         temp = m*td_err.detach()
         loss = -torch.mean(temp)
         self.optimizerA.zero_grad()
@@ -278,9 +279,10 @@ This is the RNN version of Actor Crtic, in order to address the kind of problems
 '''
 
 class IAC_RNN(IAC):
-    def __init__(self,action_dim,state_dim,CNN=True):
+    def __init__(self,action_dim,state_dim,CNN=True,device='cpu'):
         super().__init__(action_dim,state_dim)
-        self.maxsize_queue = 100
+        self.device = device
+        self.maxsize_queue = 5
         self.CNN = CNN
         if CNN:
             self.queue = deque([torch.zeros(15**2*3).reshape(1,15,15,3) for i in range(self.maxsize_queue)])
@@ -288,8 +290,8 @@ class IAC_RNN(IAC):
             self.queue = deque([torch.zeros(state_dim).reshape(1,state_dim) for i in range(self.maxsize_queue)])
         self.actor = ActorRNN(state_dim,action_dim,CNN)
         self.critic = CriticRNN(state_dim,action_dim,CNN)
-        self.optimizerA = torch.optim.Adam(self.actor.parameters(),lr=0.001)
-        self.optimizerC = torch.optim.Adam(self.critic.parameters(),lr=0.01)
+        self.optimizerA = torch.optim.Adam(self.actor.parameters(),lr=0.00006)
+        self.optimizerC = torch.optim.Adam(self.critic.parameters(),lr=0.0006)
 
 
     def input_preprocess(self):
@@ -300,14 +302,13 @@ class IAC_RNN(IAC):
         self.queue.insert(0,state)
 
     def choose_action(self,s):
-        s = torch.Tensor(s).unsqueeze(0)
+        s = torch.Tensor(s).unsqueeze(0).to(self.device)
         self.collect_states(s)
         self.queue.reverse()
         if self.CNN:
             self.act_prob = self.actor(torch.cat(list(self.queue)).reshape((-1,3,15,15))) + torch.abs(
                 torch.randn(self.action_dim) * 0. * self.constant_decay)
         else:
-            # t = torch.cat(list(self.queue)).reshape((-1,self.state_dim))
             self.act_prob = self.actor(torch.cat(list(self.queue)).reshape((1,-1,self.state_dim))) + torch.abs(
                 torch.randn(self.action_dim) * 0. * self.constant_decay)
         self.queue.reverse()
@@ -321,8 +322,8 @@ class IAC_RNN(IAC):
         return temp
 
     def cal_tderr(self,s,r,s_):
-        s = torch.Tensor(s).unsqueeze(0)
-        s_ = torch.Tensor(s_).unsqueeze(0)
+        s = torch.Tensor(s).unsqueeze(0).to(self.device)
+        s_ = torch.Tensor(s_).unsqueeze(0).to(self.device)
         temp_q = copy.deepcopy(self.queue)
         temp_q.pop()
         temp_q.insert(0,s_)
@@ -337,4 +338,4 @@ class IAC_RNN(IAC):
             self.queue.reverse()
             v = self.critic(torch.cat(list(self.queue)).reshape(1,-1,self.state_dim))
             self.queue.reverse()
-        return r + 0.97*v_ - v
+        return r + 0.9*v_ - v
