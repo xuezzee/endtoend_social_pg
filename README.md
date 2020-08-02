@@ -1,7 +1,7 @@
 # end to end_social_AC
 改的比较乱😅
 
-##IAC_RNN on cleanup, 4 agents
+## IAC_RNN on cleanup, 4 agents
 ![image](https://github.com/xuezzee/endtoend_social_pg/blob/master/picture/cleanup_IAC_RNN_4agents.png?raw=true)
 
 ## IAC on mini map(fewer apples)
