@@ -104,7 +104,7 @@ def main():
     # writers = [writer = SummaryWriter('runs/fashion_mnist_experiment_1')]
     n_agents = 2
     # multiPG = independentAgent([PGagent(agentParam) for i in range(n_agents)])
-    multiPG = Agents([IAC_RNN(8,675) for i in range(n_agents)])  # create PGagents as well as a social agent
+    multiPG = Agents([IAC(8,675,CNN = True,width=15,height=15,channel=3) for i in range(n_agents)])  # create PGagents as well as a social agent
     # multiPG = Social_Agents([social_IAC(8,400,agentParam) for i in range(n_agents)],agentParam)
     for i_episode in range(101):
         n_state, ep_reward = env.reset(), 0  # reset the env

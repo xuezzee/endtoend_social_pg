@@ -20,6 +20,7 @@ from torch.utils.tensorboard import SummaryWriter
 # from envs.ElevatorENV import Lift
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+print("device:",device)
 
 parser = argparse.ArgumentParser(description='PyTorch REINFORCE example')
 parser.add_argument('--gamma', type=float, default=1, metavar='G',
@@ -33,7 +34,7 @@ parser.add_argument('--log-interval', type=int, default=1, metavar='N',
 args = parser.parse_args()
 
 # env = GatheringEnv(2)  # gym.make('CartPole-v1')
-env = CleanupEnv(num_agents = 1)
+env = CleanupEnv(num_agents = 4)
 # env.seed(args.seed)
 # torch.manual_seed(args.seed)
 
@@ -105,13 +106,13 @@ class Social_Agents():
 def main():
     # agent = PGagent(agentParam)
     # writers = [writer = SummaryWriter('runs/fashion_mnist_experiment_1')]
-    n_agents = 1
+    n_agents = 4
     # multiPG = independentAgent([PGagent(agentParam) for i in range(n_agents)])
-    multiPG = Agents([IAC_RNN(9,675) for i in range(n_agents)])  # create PGagents as well as a social agent
+    multiPG = Agents([IAC_RNN(9,675,device=device) for i in range(n_agents)])  # create PGagents as well as a social agent
     # multiPG = Social_Agents([social_IAC(8,400,agentParam) for i in range(n_agents)],agentParam)
     for i_episode in range(101):
         n_state, ep_reward = env.reset(), 0  # reset the env
-        for t in range(1, 1000):
+        for t in range(1, 3000):
             actions = multiPG.choose_action(n_state)  # agent.select_action(state)   #select masked actions for every agent
             # actions = multiPG.select_masked_actions(n_state)
             n_state_, n_reward, _, _ = env.step(actions)  # interact with the env
