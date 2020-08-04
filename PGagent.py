@@ -171,16 +171,16 @@ class IAC():
         self.state_dim = state_dim
         self.noise_epsilon = 0.999
         self.constant_decay = 1
-        self.optimizerA = torch.optim.Adam(self.actor.parameters(), lr = 0.001)
+        self.optimizerA = torch.optim.Adam(self.actor.parameters(), lr = 0.00001)
         self.optimizerC = torch.optim.Adam(self.critic.parameters(), lr = 0.01)
-        self.lr_scheduler = {"optA":torch.optim.lr_scheduler.StepLR(self.optimizerA,step_size=1000,gamma=0.95,last_epoch=-1),
+        self.lr_scheduler = {"optA":torch.optim.lr_scheduler.StepLR(self.optimizerA,step_size=1000,gamma=1,last_epoch=-1),
                              "optC":torch.optim.lr_scheduler.StepLR(self.optimizerC,step_size=1000,gamma=0.9,last_epoch=-1)}
         if CNN:
             # self.CNN_preprocessA = CNN_preprocess(width,height,channel)
             # self.CNN_preprocessC = CNN_preprocess
             self.optimizerA = torch.optim.Adam(itertools.chain(self.CNN_preprocessA.parameters(),self.actor.parameters()),lr=0.0001)
             self.optimizerC = torch.optim.Adam(itertools.chain(self.CNN_preprocessC.parameters(),self.critic.parameters()),lr=0.001)
-            self.lr_scheduler = {"optA": torch.optim.lr_scheduler.StepLR(self.optimizerA, step_size=10000, gamma=0.9, last_epoch=-1),
+            self.lr_scheduler = {"optA": torch.optim.lr_scheduler.StepLR(self.optimizerA, step_size=10000, gamma=1, last_epoch=-1),
                                  "optC": torch.optim.lr_scheduler.StepLR(self.optimizerC, step_size=10000, gamma=0.9, last_epoch=-1)}
         # self.act_prob
         # self.act_log_prob

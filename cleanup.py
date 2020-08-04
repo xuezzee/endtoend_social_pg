@@ -231,3 +231,7 @@ class CleanupEnv(MapEnv):
 
 
         self.root.update()
+
+    @property
+    def observation_space(self):
+        return

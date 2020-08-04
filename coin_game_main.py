@@ -55,7 +55,7 @@ impath = "images/harvest_small"
 
 n_episode = 201
 n_steps = 500
-logger = Logger('./logs')
+logger = Logger('./logs1')
 
 if test_mode:
     ifsave_model = False
@@ -90,7 +90,7 @@ class Agents():
         self.num_agent = len(agents)
         self.agents = agents
         self.critic = Centralised_Critic(state_dim)
-        self.optimizerC = torch.optim.Adam(self.critic.parameters(),lr=0.01)
+        self.optimizerC = torch.optim.Adam(self.critic.parameters(),lr=0.001)
         self.lr_schedulerC = torch.optim.lr_scheduler.StepLR(self.optimizerC, step_size=1000, gamma=1, last_epoch=-1)
         for i in self.agents:
             i.critic = self.critic
