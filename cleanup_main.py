@@ -1,18 +1,14 @@
 import argparse
 import numpy as np
 from gym.spaces import Discrete, Box
-from itertools import count
-import random
 import torch
-from endtoend_social_pg.MAAC.utils.env_wrappers import SubprocVecEnv, DummyVecEnv
 from cleanup import CleanupEnv
-from PGagent import PGagent, social_agent, newPG, IAC, social_IAC, IAC_RNN
+from PGagent import social_agent, IAC_RNN
 from endtoend_social_pg.MAAC.algorithms.attention_sac import AttentionSAC
 from endtoend_social_pg.MAAC.utils.buffer import ReplayBuffer
-from parallel_env_process import envs_dealer
-from copy import deepcopy
+from endtoend_social_pg.parallel_env_process import envs_dealer
 from logger import Logger
-from torch.utils.tensorboard import SummaryWriter
+
 # from envs.ElevatorENV import Lift
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
